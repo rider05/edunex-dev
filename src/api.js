@@ -14,7 +14,7 @@ export function setApiBaseUrl(url) {
     if (!url) {
       localStorage.removeItem(STORAGE_KEY);
     } else {
-      localStorage.setItem(STORAGE_KEY, String(url).replace(/\/+$/, ""));
+      localStorage.setItem(STORAGE_KEY, String(url).trim().replace(/\/+$/, ""));
     }
   } catch {}
 }
@@ -23,14 +23,48 @@ export function getRootUrl() {
   return getApiBaseUrl().replace(/\/api\/v1\/?$/, "");
 }
 
+/**
+ * Measures round-trip ping time to server in milliseconds
+ */
+export async function pingBackend() {
+  const root = getRootUrl();
+  const start = performance.now();
+  try {
+    const res = await fetch(`${root}/health`, { cache: "no-store" });
+    const latency = Math.round(performance.now() - start);
+    return { ok: res.ok, status: res.status, latency };
+  } catch (err) {
+    const latency = Math.round(performance.now() - start);
+    return { ok: false, status: 0, latency, error: err.message };
+  }
+}
+
 export async function fetchBugReports() {
   const base = getApiBaseUrl();
-  const res = await fetch(`${base}/bugReports?limit=200`, {
-    headers: { "Accept": "application/json" },
+  const res = await fetch(`${base}/bugReports?limit=250`, {
+    headers: { Accept: "application/json" },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   const json = await res.json();
   return Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
+}
+
+export async function createBugReport(payload) {
+  const base = getApiBaseUrl();
+  const res = await fetch(`${base}/bugReports`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      status: "open",
+      createdAt: new Date().toISOString(),
+      ...payload,
+    }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.json();
 }
 
 export async function updateBugReport(id, updates) {
@@ -62,7 +96,131 @@ export async function fetchSystemHealth() {
 
 export async function fetchDatabaseStats() {
   const base = getApiBaseUrl();
-  const res = await fetch(`${base}/stats`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  try {
+    const res = await fetch(`${base}/stats`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    try {
+      const root = getRootUrl();
+      const res2 = await fetch(`${root}/stats`);
+      if (res2.ok) return await res2.json();
+    } catch {}
+    throw err;
+  }
+}
+
+/**
+ * Publishes a notification notice to the EduNex Notice Board & mobile notification stream
+ */
+export async function createNotice(payload) {
+  const base = getApiBaseUrl();
+  const res = await fetch(`${base}/notices`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      category: "Bug Fix / Quality Update",
+      author: "EduNex Engineering & BugOps Desk",
+      sender: "EduNex Engineering & BugOps Desk",
+      senderRole: "admin",
+      priority: "high",
+      isNew: true,
+      date: new Date().toLocaleDateString("en-US", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }),
+      createdAt: new Date().toISOString(),
+      ...payload,
+    }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   return res.json();
 }
+
+/**
+ * Sends a direct message to the user's mobile chat/inbox
+ */
+export async function createDirectMessage(payload) {
+  const base = getApiBaseUrl();
+  const res = await fetch(`${base}/messages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      senderId: "SYS-DEVOPS-DESK",
+      senderName: "EduNex Engineering Desk",
+      senderRole: "admin",
+      read: false,
+      createdAt: new Date().toISOString(),
+      ...payload,
+    }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+/**
+ * Resolves a bug report and dispatches a warm, personalized greeting & thank-you notification
+ * directly to the EduNex mobile app via Notices and Direct Messages
+ */
+export async function sendResolutionNotification(bug, { title, message, sendNotice = true, sendMessage = true }) {
+  const bugId = bug.id || bug._id;
+  const reporter = bug.reporter || {};
+
+  const noticePromise = sendNotice
+    ? createNotice({
+        title,
+        subject: title,
+        content: message,
+        message: message,
+        text: message,
+        targetUser: reporter.username,
+        targetRollNo: reporter.rollNo,
+        targetRole: reporter.role || "student",
+        metadata: {
+          type: "bug_resolved",
+          bugId,
+          bugTitle: bug.title,
+          screen: bug.screen,
+          reporterName: reporter.name,
+        },
+      }).catch((e) => console.warn("Notice dispatch fallback:", e))
+    : Promise.resolve(null);
+
+  const messagePromise = sendMessage
+    ? createDirectMessage({
+        receiverId: reporter.rollNo || reporter.username || "all",
+        receiverName: reporter.name || "Valued User",
+        receiverRole: reporter.role || "student",
+        text: `🎉 ${title}\n\n${message}`,
+      }).catch((e) => console.warn("Direct message fallback:", e))
+    : Promise.resolve(null);
+
+  const updateBugPromise = updateBugReport(bugId, {
+    status: "resolved",
+    resolvedAt: new Date().toISOString(),
+    resolutionTitle: title,
+    resolutionGreeting: message,
+    notifiedUser: true,
+    notifiedAt: new Date().toISOString(),
+  });
+
+  const [noticeResult, messageResult, updatedBug] = await Promise.all([
+    noticePromise,
+    messagePromise,
+    updateBugPromise,
+  ]);
+
+  return {
+    noticeResult,
+    messageResult,
+    updatedBug,
+  };
+}
+
