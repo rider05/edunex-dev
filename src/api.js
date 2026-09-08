@@ -180,9 +180,11 @@ export async function sendResolutionNotification(bug, { title, message, sendNoti
         content: message,
         message: message,
         text: message,
+        body: message,
         targetUser: reporter.username,
         targetRollNo: reporter.rollNo,
         targetRole: reporter.role || "student",
+        recipient: reporter.username || reporter.rollNo,
         metadata: {
           type: "bug_resolved",
           bugId,
@@ -195,10 +197,14 @@ export async function sendResolutionNotification(bug, { title, message, sendNoti
 
   const messagePromise = sendMessage
     ? createDirectMessage({
+        recipientId: reporter.rollNo || reporter.username || "all",
         receiverId: reporter.rollNo || reporter.username || "all",
+        recipientName: reporter.name || "Valued User",
         receiverName: reporter.name || "Valued User",
+        recipientRole: reporter.role || "student",
         receiverRole: reporter.role || "student",
         text: `🎉 ${title}\n\n${message}`,
+        message: `🎉 ${title}\n\n${message}`,
       }).catch((e) => console.warn("Direct message fallback:", e))
     : Promise.resolve(null);
 

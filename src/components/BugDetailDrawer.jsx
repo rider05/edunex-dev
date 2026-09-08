@@ -15,6 +15,9 @@ import {
   Code2,
   ExternalLink,
   MessageSquare,
+  Heart,
+  Send,
+  BellRing,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 
@@ -25,6 +28,7 @@ export default function BugDetailDrawer({
   onSaveDevNote,
   onDelete,
   onShowToast,
+  onOpenResolveGreeting,
 }) {
   if (!bug) return null;
 
@@ -58,16 +62,13 @@ export default function BugDetailDrawer({
   };
 
   const handleStatusTransition = async (newStatus) => {
-    await onStatusChange(id, newStatus);
     if (newStatus === "resolved") {
-      try {
-        confetti({
-          particleCount: 70,
-          spread: 60,
-          origin: { y: 0.7, x: 0.8 },
-        });
-      } catch {}
+      // Open resolution greeting dispatcher modal
+      onOpenResolveGreeting(bug);
+      return;
     }
+
+    await onStatusChange(id, newStatus);
   };
 
   const copyToClipboard = (text, label) => {
@@ -157,6 +158,92 @@ ${devNotes || "None"}
             </div>
           </div>
 
+          {/* Mobile Resolution Greeting & Notification Status Card */}
+          {bug.status === "resolved" ? (
+            <div
+              className="drawer-section"
+              style={{
+                background: "linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 182, 212, 0.08) 100%)",
+                borderColor: "rgba(16, 185, 129, 0.35)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Heart size={18} className="text-emerald" />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
+                    Mobile App Resolution Notification
+                  </span>
+                </div>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: 11, padding: "3px 8px" }}
+                  onClick={() => onOpenResolveGreeting(bug)}
+                >
+                  <Send size={11} />
+                  <span>{bug.notifiedUser ? "Send Another Greeting" : "Send Greeting Now"}</span>
+                </button>
+              </div>
+
+              {bug.resolutionGreeting ? (
+                <div>
+                  <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                    <CheckCircle2 size={12} className="text-emerald" />
+                    <span>Greeting delivered to {bug.reporter?.name || "user"}'s EduNex mobile app:</span>
+                  </div>
+                  <div
+                    style={{
+                      background: "rgba(0, 0, 0, 0.35)",
+                      padding: "10px 12px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(255, 255, 255, 0.06)",
+                      fontSize: 12,
+                      lineHeight: 1.5,
+                      color: "var(--text-secondary)",
+                      whiteSpace: "pre-wrap",
+                    }}
+                  >
+                    {bug.resolutionGreeting}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                  This bug is marked as resolved, but a greeting notification has not yet been dispatched to the reporter. Click above to send one!
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Button to quick-trigger resolve greeting */
+            <div
+              className="drawer-section"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                background: "rgba(6, 182, 212, 0.06)",
+                borderColor: "rgba(6, 182, 212, 0.25)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <BellRing size={16} className="text-cyan" />
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "#fff" }}>
+                    Ready to resolve this incident?
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                    Dispatch a personalized thank-you greeting to {bug.reporter?.name || "user"}'s mobile app
+                  </div>
+                </div>
+              </div>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => onOpenResolveGreeting(bug)}
+              >
+                <Heart size={13} />
+                <span>Resolve & Greet User</span>
+              </button>
+            </div>
+          )}
+
           {/* Status Workflow Action Bar */}
           <div className="drawer-section" style={{ background: "rgba(255, 255, 255, 0.02)" }}>
             <div className="drawer-section-title">Workflow Progression</div>
@@ -180,7 +267,7 @@ ${devNotes || "None"}
                 onClick={() => handleStatusTransition("resolved")}
               >
                 <CheckCircle2 size={13} />
-                <span>Resolved</span>
+                <span>Resolved & Send Greeting</span>
               </button>
               <button
                 className={`btn btn-sm ${bug.status === "closed" ? "btn-primary" : "btn-secondary"}`}
@@ -248,6 +335,14 @@ ${devNotes || "None"}
                   {new Date(bug.createdAt || Date.now()).toLocaleString("en-IN")}
                 </span>
               </div>
+              {bug.resolvedAt && (
+                <div className="drawer-meta-item">
+                  <span className="drawer-meta-label">Resolved At</span>
+                  <span className="drawer-meta-val" style={{ color: "var(--emerald-400)" }}>
+                    {new Date(bug.resolvedAt).toLocaleString("en-IN")}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

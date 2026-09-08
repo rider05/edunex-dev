@@ -19,6 +19,7 @@ import AnalyticsView from "./components/AnalyticsView";
 import ServerHealthView from "./components/ServerHealthView";
 import BugDetailDrawer from "./components/BugDetailDrawer";
 import BugSimulatorModal from "./components/BugSimulatorModal";
+import ResolutionGreetingModal from "./components/ResolutionGreetingModal";
 import Toast from "./components/Toast";
 
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("kanban"); // "kanban" | "table" | "analytics" | "telemetry"
   const [selectedBug, setSelectedBug] = useState(null);
   const [showSimulator, setShowSimulator] = useState(false);
+  const [resolveGreetingBug, setResolveGreetingBug] = useState(null);
   const [selectedBugIds, setSelectedBugIds] = useState([]);
 
   // Toast
@@ -108,8 +110,31 @@ export default function App() {
     }, 150);
   };
 
+  // Open Resolution Greeting Modal
+  const handleOpenResolveGreeting = (bug) => {
+    setResolveGreetingBug(bug);
+  };
+
+  // When greeting is successfully dispatched to mobile app
+  const handleResolvedSuccess = (bugId, updates) => {
+    setReports((prev) =>
+      prev.map((r) => (r.id === bugId || r._id === bugId ? { ...r, ...updates } : r))
+    );
+    if (selectedBug && (selectedBug.id === bugId || selectedBug._id === bugId)) {
+      setSelectedBug((prev) => ({ ...prev, ...updates }));
+    }
+  };
+
   // Status Transitions
   const handleStatusChange = async (id, newStatus) => {
+    if (newStatus === "resolved") {
+      const bug = reports.find((r) => r.id === id || r._id === id);
+      if (bug) {
+        handleOpenResolveGreeting(bug);
+        return;
+      }
+    }
+
     try {
       // Optimistic update
       setReports((prev) =>
@@ -401,6 +426,7 @@ export default function App() {
               reports={filteredReports}
               onSelectBug={(bug) => setSelectedBug(bug)}
               onStatusChange={handleStatusChange}
+              onOpenResolveGreeting={handleOpenResolveGreeting}
             />
           ) : (
             <TableView
@@ -413,6 +439,7 @@ export default function App() {
               setSelectedBugIds={setSelectedBugIds}
               onBatchStatusChange={handleBatchStatusChange}
               onBatchDelete={handleBatchDelete}
+              onOpenResolveGreeting={handleOpenResolveGreeting}
             />
           )}
         </>
@@ -427,8 +454,18 @@ export default function App() {
           onSaveDevNote={handleSaveDevNote}
           onDelete={handleDeleteBug}
           onShowToast={showToast}
+          onOpenResolveGreeting={handleOpenResolveGreeting}
         />
       )}
+
+      {/* Resolution Greeting & Mobile Notification Dispatcher Modal */}
+      <ResolutionGreetingModal
+        isOpen={Boolean(resolveGreetingBug)}
+        onClose={() => setResolveGreetingBug(null)}
+        bug={resolveGreetingBug}
+        onResolvedSuccess={handleResolvedSuccess}
+        onShowToast={showToast}
+      />
 
       {/* Developer Bug Simulator Modal */}
       <BugSimulatorModal

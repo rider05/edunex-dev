@@ -19,6 +19,7 @@ export default function TableView({
   setSelectedBugIds,
   onBatchStatusChange,
   onBatchDelete,
+  onOpenResolveGreeting,
 }) {
   const allIds = reports.map((r) => r.id || r._id);
   const isAllSelected = allIds.length > 0 && selectedBugIds.length === allIds.length;
@@ -127,11 +128,18 @@ export default function TableView({
                       className="filter-select"
                       style={{ padding: "3px 7px", fontSize: 11.5 }}
                       value={bug.status || "open"}
-                      onChange={(e) => onStatusChange(id, e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "resolved" && onOpenResolveGreeting) {
+                          onOpenResolveGreeting(bug);
+                        } else {
+                          onStatusChange(id, val);
+                        }
+                      }}
                     >
                       <option value="open">🔴 Open</option>
                       <option value="in_progress">🟡 In Progress</option>
-                      <option value="resolved">🟢 Resolved</option>
+                      <option value="resolved">🟢 Resolved & Greet</option>
                       <option value="closed">⚪ Closed</option>
                     </select>
                   </td>
@@ -213,6 +221,14 @@ export default function TableView({
                   {/* Actions */}
                   <td style={{ textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
                     <div style={{ display: "inline-flex", gap: 5 }}>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: "4px 7px" }}
+                        title="Send Mobile App Resolution Greeting"
+                        onClick={() => onOpenResolveGreeting && onOpenResolveGreeting(bug)}
+                      >
+                        <span style={{ fontSize: 11 }}>{bug.notifiedUser ? "💖" : "🔔"}</span>
+                      </button>
                       <button
                         className="btn btn-secondary btn-sm"
                         style={{ padding: "4px 7px" }}

@@ -14,6 +14,7 @@ export default function KanbanBoard({
   reports,
   onSelectBug,
   onStatusChange,
+  onOpenResolveGreeting,
 }) {
   const columns = [
     {
@@ -30,7 +31,7 @@ export default function KanbanBoard({
       color: "var(--amber-500)",
       icon: <AlertOctagon size={15} className="text-amber" />,
       nextStatus: "resolved",
-      nextLabel: "Resolve",
+      nextLabel: "Resolve & Greet",
     },
     {
       id: "resolved",
@@ -146,7 +147,11 @@ export default function KanbanBoard({
                           title={`Move to ${col.nextLabel}`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            onStatusChange(id, col.nextStatus);
+                            if (col.nextStatus === "resolved" && onOpenResolveGreeting) {
+                              onOpenResolveGreeting(bug);
+                            } else {
+                              onStatusChange(id, col.nextStatus);
+                            }
                           }}
                         >
                           <span>{col.nextLabel}</span>
@@ -159,6 +164,45 @@ export default function KanbanBoard({
                       {bug.description && (
                         <p className="kanban-card-desc">{bug.description}</p>
                       )}
+
+                      {/* Notified Badge or Dev Note */}
+                      {bug.notifiedUser ? (
+                        <div
+                          style={{
+                            fontSize: 10.5,
+                            color: "var(--emerald-400)",
+                            background: "rgba(16, 185, 129, 0.1)",
+                            border: "1px solid rgba(16, 185, 129, 0.25)",
+                            padding: "3px 8px",
+                            borderRadius: 4,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 5,
+                          }}
+                        >
+                          <span>📱 Greeted & Notified on Mobile</span>
+                        </div>
+                      ) : bug.status === "resolved" ? (
+                        <div
+                          style={{
+                            fontSize: 10.5,
+                            color: "var(--cyan-400)",
+                            background: "rgba(6, 182, 212, 0.1)",
+                            padding: "3px 8px",
+                            borderRadius: 4,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 5,
+                            cursor: "pointer",
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenResolveGreeting(bug);
+                          }}
+                        >
+                          <span>🔔 Tap to send mobile greeting</span>
+                        </div>
+                      ) : null}
 
                       {/* Dev note snippet indicator */}
                       {bug.devNotes && (
